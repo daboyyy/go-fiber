@@ -3,10 +3,17 @@ package main
 import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"time"
 )
 
 func main() {
+
+}
+
+func Fiber() {
 	app := fiber.New()
 
 	// Middleware (every endpoing)
@@ -25,6 +32,17 @@ func main() {
 		fmt.Println("after")
 		return nil
 	})
+
+	// Middleware Requestid
+	app.Use(requestid.New())
+
+	// Cors
+	app.Use(cors.New())
+
+	// Logger
+	app.Use(logger.New(logger.Config{
+		TimeZone: "Asia/Bangkok",
+	}))
 
 	// GET
 	app.Get("/hello", func(c *fiber.Ctx) error {
@@ -89,6 +107,77 @@ func main() {
 	// NewError
 	app.Get("/error", func(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusNotFound, "content not found")
+	})
+
+	// Group
+	v1 := app.Group("/v1")
+	v1.Get("/hello", func(c *fiber.Ctx) error {
+		return c.SendString("Hello v1")
+	})
+
+	v2 := app.Group("/v2", func(c *fiber.Ctx) error {
+		c.Set("version", "v2")
+		return c.Next()
+	})
+	v2.Get("/hello", func(c *fiber.Ctx) error {
+		return c.SendString("Hello v2")
+	})
+
+	// Mount
+	userApp := fiber.New()
+	userApp.Get("/login", func(c *fiber.Ctx) error {
+		return c.SendString("Login")
+	})
+	app.Mount("/user", userApp)
+
+	// Server
+	app.Server().MaxConnsPerIP = 1
+	app.Get("/server", func(c *fiber.Ctx) error {
+		time.Sleep(time.Second * 30)
+		return c.SendString("Server")
+	})
+
+	// env
+	app.Get("/env", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"BaseURL": c.BaseURL(),
+			"Hostname": c.Hostname(),
+			"IP": c.IP(),
+			"IPs": c.IPs(),
+			"OriginalURL": c.OriginalURL(),
+			"Path": c.Path(),
+			"Protocol": c.Protocol(),
+			"SubDomains": c.Subdomains(),
+		})
+	})
+
+	// Body
+	app.Post("/body", func(c *fiber.Ctx) error {
+		fmt.Printf("IsJson: %v \n", c.Is("json"))
+		fmt.Println(string(c.Body()))
+
+		person := Person{}
+		err := c.BodyParser(&person)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(person)
+		return nil
+	})
+
+	app.Post("/body2", func(c *fiber.Ctx) error {
+		fmt.Printf("IsJson: %v \n", c.Is("json"))
+		fmt.Println(string(c.Body()))
+
+		data := map[string]interface{}{}
+		err := c.BodyParser(&data)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(data)
+		return nil
 	})
 
 	app.Listen(":8000")
