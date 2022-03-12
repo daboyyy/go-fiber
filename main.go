@@ -3,14 +3,33 @@ package main
 import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"time"
 )
 
 func main() {
 	app := fiber.New()
 
+	// Middleware (every endpoing)
+	app.Use(func(c *fiber.Ctx) error {
+		fmt.Println("before")
+		err := c.Next()
+		fmt.Println("after")
+		return err
+	})
+
+	// Middleware (specific endpoing)
+	app.Use("/hello", func(c *fiber.Ctx) error {
+		c.Locals("name", "bond")
+		fmt.Println("before")
+		c.Next()
+		fmt.Println("after")
+		return nil
+	})
+
 	// GET
 	app.Get("/hello", func(c *fiber.Ctx) error {
-		return c.SendString("GET: Hello World")
+		name := c.Locals("name")
+		return c.SendString(fmt.Sprintf("GET: Hello %v", name))
 	})
 
 	// POST
@@ -53,6 +72,23 @@ func main() {
 		person := Person{}
 		c.QueryParser(&person)
 		return c.JSON(person)
+	})
+
+	// Wildcards
+	app.Get("/wildcards/*", func(c *fiber.Ctx) error {
+		wildcard := c.Params("*")
+		return c.SendString(wildcard)
+	})
+
+	// Static File
+	app.Static("/", "./wwwroot", fiber.Static{
+		Index: "index.html",
+		CacheDuration: time.Second * 10,
+	})
+
+	// NewError
+	app.Get("/error", func(c *fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusNotFound, "content not found")
 	})
 
 	app.Listen(":8000")
